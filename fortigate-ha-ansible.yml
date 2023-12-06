@@ -1,0 +1,127 @@
+---
+- name: Create HA cluster for Fortigates ver. 7.0/7.2
+  gather_facts: false
+  connection: httpapi
+  hosts: fcluster
+
+  tasks:
+    - name: Sending an API request to the device
+      fortinet.fortios.fortios_json_generic:
+        access_token: "{{ access_token }}"
+        vdom: "{{ vdom }}"
+        json_generic:
+          path: "/api/v2/cmdb/system/virtual-switch/lan/port/"
+          specialparams: "filter=name=@{{ hbdev_intf2 }}"
+          method: "GET"
+      register: ports
+
+    - name: Result evaluation
+      block:
+        - name: Checking if the port is ready to become the second HA port
+          ansible.builtin.assert:
+            quiet: false
+            that:
+              - ports.meta.results|length == 0    # Validating if dictionary is empty
+            success_msg: "OK! Port {{ hbdev_intf2 }} is ready to become the second HA port"
+            fail_msg: ""
+      rescue:
+        - name: Rundown for {{ inventory_hostname }}
+          ansible.builtin.debug:
+            msg: "Port {{ hbdev_intf2 }} MUST BE removed from the virtual switch before HA cluster configuration"
+        - name: Ending current playbook
+          ansible.builtin.meta:
+            end_play
+
+    - name: Configure HA FGCP cluster
+      fortinet.fortios.fortios_system_ha:
+        access_token: "{{ access_token }}"
+        vdom: "{{ vdom }}"
+        system_ha:
+
+# =======================================================================================================
+# GENERAL HA CLUSTER SETTINGS
+# =======================================================================================================
+
+          group_id: "0"
+          group_name: "FG-HA-FGCP"
+          mode: "{{ mode }}"
+          priority: "{{ ha_priority }}"
+          hbdev: "{{ hbdev_intf1 }} {{ hbdev_intf1_priority }} {{ hbdev_intf2 }} {{ hbdev_intf2_priority }}"
+          override: "enable"
+
+# =======================================================================================================
+# HA CLUSTER FAILOVER BEHAVIUOR CONFIGURATION
+# =======================================================================================================
+
+# Enable to shutdown all interfaces for 1 sec after failover.cUse if gratuitous ARPs don't update network
+          link_failed_signal: "disable"
+
+# Disable if link-failed-signal enabled
+          gratuitous_arps: "enable"
+
+# Number of gratuitous ARP. Lower to reduce traffic, higher to reduce failover time
+          arps: "10"
+
+# Time between gratuitous ARP. Lower to reduce failover time, higher to reduce traffic
+          arps_interval: "1"
+
+# Upgrade cluster without blocking network traffic
+          uninterruptible_upgrade: "enable"
+
+# =======================================================================================================
+# SESSION SYNCRONIZATION SECTION
+# =======================================================================================================
+
+# Enabling it can reduce session down time when fail over happens
+          session_pickup: "{{ session_pickup }}"
+
+# Enable/disable UDP and ICMP session sync.
+          session_pickup_connectionless: "{{ session_pickup }}"
+
+# Enable to sync sessions longer than 30 sec. Only longer lived sessions need to be synced.
+          session_pickup_delay: "enable"
+
+       #  session_pickup_nat: "enable"              # Only for FGSP cluster
+          sync_config: "enable"
+          session_sync_dev: "{{ hbdev_intf2 }}"
+
+# Enable/disable automatic HA failover on SSD disk failure.
+          ssd_failover: "enable"
+
+# =======================================================================================================
+# HEARTBEAT CLUSTER TIMING SECTION
+# =======================================================================================================
+
+# Time between sending heartbeat packets.
+          hb_interval: "3"
+
+# Number of milliseconds for each heartbeat interval. So this means a heartbeat is sent every
+# ("hb_interval" * "hb_interval_in_ milliseconds"). Default time interval between heartbeats is
+# 200ms (2*100ms)
+          hb_interval_in_milliseconds: "10ms"
+
+
+# After "hb_lost_threshold" consecutive heartbeats are lost, a failover will be detected in
+# ("hb_interval" * "hb_interval_in_ milliseconds") * "hb_lost_threshold". In this case it's 90ms
+          hb_lost_threshold: "3"
+
+# =======================================================================================================
+# HEARTBEAT ENCRYPTION AND AUTHENTICATION SECTION
+# =======================================================================================================
+          authentication: "enable"
+          encryption: "enable"
+          password: "{{ cluster_pass }}"
+
+# =======================================================================================================
+# VDOM PARTIONING
+# =======================================================================================================
+          vcluster_status: "enable"
+          vcluster_id: "0"
+          vcluster:
+            -
+              vcluster_id: "1"
+              vdom:
+                -
+                  name: "root"
+# For Fortigates with NP7 processors. Improving performance for large number of HA sync packets
+          sync_packet_balance: "disable"

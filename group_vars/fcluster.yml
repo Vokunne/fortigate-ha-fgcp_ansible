@@ -1,0 +1,31 @@
+---
+# fortigate_cluster.yml:  group_vars
+# This variables enable using httpapi connection method
+ansible_network_os: fortinet.fortios.fortios
+ansible_httpapi_use_ssl: true
+ansible_httpapi_validate_certs: false
+ansible_httpapi_port: 443
+
+vdom: root
+mode: a-p 
+session_pickup: enable 
+
+hbdev_intf1: ha
+
+# Default interface priority is 0 and the range is 0 to 512. The dedicated HA interface always sets to a higher 
+# number that means the higher priority. Data plane HA interface has a lower priority because of its bahaviour and
+# shared common resources
+hbdev_intf1_priority: 210                                
+
+
+# As the secondary HA port this playbook uses Port16. Initially, this port belongs to internal switch, so
+# before to use it as HA port you have to move about from internal hardware switch
+hbdev_intf2: port16
+hbdev_intf2_priority: 190
+
+# Default parameters for HA cluster
+cluster_number: 1
+gateway: 169.254.0.0
+ha_priority: 0
+
+vdom_vcluster1: [["root"]]

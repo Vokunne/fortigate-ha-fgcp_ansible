@@ -1,0 +1,12 @@
+---
+# It is highly recommended to use Ansible Vault in order to save sensitive information such as tokens, passwords 
+# and even usernames in production environments. Nonetheless I advice you to use Vault in test/staging evironment
+# too.  
+
+access_token: <Insert here the API Token for FG-02 encrypted by Ansible Vault>
+
+ansible_host: 10.10.10.5
+ansible_httpapi_port: 443
+gateway: 10.10.10.1
+cluster_number: 1
+cluster_pass: <Insert here the FG HA cluster password encrypted by Ansible Vault>
